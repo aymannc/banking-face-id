@@ -1,12 +1,19 @@
+import os
+
+import matplotlib.pyplot as plt
+# Commented out IPython magic to ensure Python compatibility.
 import numpy as np
+from imageio import imread
+from imutils import paths
 from keras.models import load_model
+from scipy.spatial import distance
 
 from _mtcnn import extract_face
 
-image_dir_basepath = './data/images/'
+image_dir_basepath = 'data/images/'
+names = ['anc']
 image_size = 160
 model_path = 'facenet_keras.h5'
-model = load_model(model_path)
 
 
 def prewhiten(x):
@@ -34,22 +41,52 @@ def l2_normalize(x, axis=-1, epsilon=1e-10):
 def load_and_align_images(filepaths):
     aligned_images = []
     for filepath in filepaths:
-        print('[INFO] prossesing ', filepath)
-        face = extract_face(filepath)[0]
-        aligned_images.append(face)
+        print('[INFO] Aligning image :', filepath)
+        aligned_images.append(extract_face(filepath)[0])
     return np.array(aligned_images)
 
 
-def calc_embedings(filepaths, batch_size=1):
-    print('[INFO] prewhiten')
+def calculate_embeddings(filepaths):
     aligned_images = prewhiten(load_and_align_images(filepaths))
+
+    model = load_model(model_path)
     pd = []
-    for start in range(0, len(aligned_images), batch_size):
-        print('[INFO] calculating embeddings  n = ', start)
-        pd.append(model.predict_on_batch(aligned_images[start:start + batch_size]))
+    for i in range(len(aligned_images)):
+        print('[INFO] model.predict')
+        pd.append(model.predict(aligned_images[i]))
     embs = l2_normalize(np.concatenate(pd))
+
     return embs
 
 
-def calc_dist(emb1, emb2):
-    return np.linalg.norm(emb1 - emb2)
+def calc_dist(img_name0, img_name1):
+    return distance.euclidean(data[img_name0]['emb'], data[img_name1]['emb'])
+
+
+def calc_dist_plot(img_name0, img_name1):
+    plt.subplot(1, 2, 1)
+    plt.imshow(imread(data[img_name0]['image_filepath']))
+    plt.subplot(1, 2, 2)
+    plt.imshow(imread(data[img_name1]['image_filepath']))
+    return calc_dist(img_name0, img_name1)
+
+
+data = {}
+
+
+def get_embeddings():
+    imagePaths = list(paths.list_images(image_dir_basepath))
+    print('paths', imagePaths)
+    for name in names:
+        image_dirpath = image_dir_basepath + name
+        image_filepaths = [os.path.join(image_dirpath, f) for f in os.listdir(image_dirpath)]
+        print('paths2', image_filepaths)
+        embs = calculate_embeddings(image_filepaths)
+        for i in range(len(image_filepaths)):
+            data['{}{}'.format(name, i)] = {'image_filepath': image_filepaths[i],
+                                            'emb': embs[i]}
+
+    calculated_distance = round(calc_dist_plot("NaitCherif1", "NaitCherif0"), 1)
+    print(calculated_distance, 'Same' if calculated_distance <= 0.55 else 'Different', 'person')
+
+    return data

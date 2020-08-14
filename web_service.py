@@ -3,19 +3,28 @@ import os
 import time
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
 import requests
-from flask import Flask, jsonify, request, send_from_directory, Response
+from flask import Flask, jsonify
+from flask import request, send_from_directory, Response
 from flask_cors import CORS
 from flask_mysqldb import MySQL
-from imutils import paths
+from imageio import imread
+from keras.models import load_model
+from scipy.spatial import distance
+
+from _mtcnn import extract_face
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-data_set_path = "./data/images"
-results_path = "./data/results"
+dataset_path = "data/images/"
+results_path = "data/results"
 public_url = 'http://127.0.0.1:5000/'
+model_path = 'facenet_keras.h5'
 app = Flask(__name__, static_url_path='')
 CORS(app)
 # run_with_ngrok(app)
+
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = ''
@@ -28,9 +37,77 @@ data_load_time = 0.0
 number_of_requests = 0
 
 
+@app.before_first_request
+def _load_model():
+    global model
+    model = load_model(model_path)
+
+
+def prewhiten(x):
+    if x.ndim == 4:
+        axis = (1, 2, 3)
+        size = x[0].size
+    elif x.ndim == 3:
+        axis = (0, 1, 2)
+        size = x.size
+    else:
+        raise ValueError('Dimension should be 3 or 4')
+
+    mean = np.mean(x, axis=axis, keepdims=True)
+    std = np.std(x, axis=axis, keepdims=True)
+    std_adj = np.maximum(std, 1.0 / np.sqrt(size))
+    y = (x - mean) / std_adj
+    return y
+
+
+def l2_normalize(x, axis=-1, epsilon=1e-10):
+    output = x / np.sqrt(np.maximum(np.sum(np.square(x), axis=axis, keepdims=True), epsilon))
+    return output
+
+
+def load_and_align_images(filepaths):
+    aligned_images = []
+    for filepath in filepaths:
+        print('[INFO] Aligning image :', filepath)
+        aligned_images.append(extract_face(filepath)[0])
+    return np.array(aligned_images)
+
+
+def calculate_embeddings(filepaths, batch_size=1):
+    aligned_images = prewhiten(load_and_align_images(filepaths))
+    print('[INFO] Done aligning images')
+    pd = []
+    for i in range(len(aligned_images)):
+        print('[INFO] Calculating encodings')
+        embedding = model.predict_on_batch(aligned_images[i:i + batch_size])
+        pd.append(embedding)
+    embs = l2_normalize(np.concatenate(pd))
+    return embs
+
+
+def calc_dist(img_name0, img_name1):
+    return distance.euclidean(data[img_name0]['emb'], data[img_name1]['emb'])
+
+
+def calc_dist_plot(img_name0, img_name1):
+    plt.subplot(1, 2, 1)
+    plt.imshow(imread(data[img_name0]['image_filepath']))
+    plt.subplot(1, 2, 2)
+    plt.imshow(imread(data[img_name1]['image_filepath']))
+    return calc_dist(img_name0, img_name1)
+
+
+@app.before_first_request
+def _load_model():
+    global model
+    print('[INFO] loading model')
+    model = load_model(model_path)
+    print('[INFO] Done !')
+
+
 @app.route('/uploads/<path:path>')
 def download_file(path):
-    return send_from_directory(data_set_path, path)
+    return send_from_directory(dataset_path, path)
 
 
 @app.route('/results/<path:path>')
@@ -78,6 +155,7 @@ def insert_encodings(encoding, username):
     user_id = get_user_id(username)
     try:
         if user_id:
+            print(F'[INFO] inserting encoding for {username} with id: {user_id}')
             query = F"insert into encodings values(null,{user_id}"
             for value in encoding:
                 query += F',{value}'
@@ -87,9 +165,8 @@ def insert_encodings(encoding, username):
             cursor.execute(query)
             connection.commit()
             return True
-    except Exception as _:
-        return False
-    finally:
+    except Exception as e:
+        print(e)
         return False
 
 
@@ -102,7 +179,7 @@ def upload_file():
         try:
             for file in request.files.getlist('files'):
                 if file and allowed_file(file.filename):
-                    base_path = os.path.join(data_set_path, username)
+                    base_path = os.path.join(dataset_path, username)
                     file_name = f"{username}_{time.time()}{file.filename}"
                     Path(base_path).mkdir(parents=True, exist_ok=True)
                     full_path = os.path.join(base_path, file_name)
@@ -153,23 +230,21 @@ def upload_image():
     '''
 
 
-@app.route('/faces_encoding', methods=['GET', 'POST'])
-def faces_encoding():
+@app.route('/encode_all_images', methods=['GET', 'POST'])
+def encode_all_images():
     successful = True
     error_message = None
-
     start_time = time.time()
     try:
-        print("[INFO] quantifying faces...")
-        # Example of output ['dataset\\anc\\Nait Cherif.jpg',...]
-        imagePaths = list(paths.list_images(data_set_path))
-        print(imagePaths)
-
-        for (i, imagePath) in enumerate(imagePaths):
-            # extract the person name from the image path
-            print(f"[INFO] processing image {i + 1}/{len(imagePaths)}")
-            name = imagePath.split(os.path.sep)[-2]
-            insert_encodings(encoding, name)
+        usernames = [directory for directory in os.listdir(dataset_path) if os.path.isdir(dataset_path + directory)]
+        print(usernames)
+        for username in usernames:
+            path = os.path.join(dataset_path, username)
+            images = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+            encodings = calculate_embeddings(images)
+            for encoding in encodings:
+                insert_encodings(encoding, username)
+        return True
     except Exception as e:
         successful = False
         error_message = e

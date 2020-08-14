@@ -18,8 +18,8 @@ def extract_face(filename, required_size=(160, 160)):
     # create the detector, using default weights
     detector = MTCNN()
     # detect faces in the image
+    print('[INFO] detecting faces')
     results = detector.detect_faces(pixels)
-    print(results)
     faces_array = []
     # extract the bounding box from the first face
     for result in results:
