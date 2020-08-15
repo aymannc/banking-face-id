@@ -1,19 +1,7 @@
-import os
-
-import matplotlib.pyplot as plt
-# Commented out IPython magic to ensure Python compatibility.
 import numpy as np
-from imageio import imread
-from imutils import paths
-from keras.models import load_model
-from scipy.spatial import distance
+from tensorflow.python.keras.backend import set_session
 
 from _mtcnn import extract_face
-
-image_dir_basepath = 'data/images/'
-names = ['anc']
-image_size = 160
-model_path = 'facenet_keras.h5'
 
 
 def prewhiten(x):
@@ -46,47 +34,15 @@ def load_and_align_images(filepaths):
     return np.array(aligned_images)
 
 
-def calculate_embeddings(filepaths):
+def calculate_embeddings(filepaths, model, sess, graph, batch_size=1):
     aligned_images = prewhiten(load_and_align_images(filepaths))
-
-    model = load_model(model_path)
+    print('[INFO] Done aligning images')
     pd = []
     for i in range(len(aligned_images)):
-        print('[INFO] model.predict')
-        pd.append(model.predict(aligned_images[i]))
+        print('[INFO] Calculating encodings')
+        with graph.as_default():
+            set_session(sess)
+            embedding = model.predict_on_batch(aligned_images[i:i + batch_size])
+        pd.append(embedding)
     embs = l2_normalize(np.concatenate(pd))
-
     return embs
-
-
-def calc_dist(img_name0, img_name1):
-    return distance.euclidean(data[img_name0]['emb'], data[img_name1]['emb'])
-
-
-def calc_dist_plot(img_name0, img_name1):
-    plt.subplot(1, 2, 1)
-    plt.imshow(imread(data[img_name0]['image_filepath']))
-    plt.subplot(1, 2, 2)
-    plt.imshow(imread(data[img_name1]['image_filepath']))
-    return calc_dist(img_name0, img_name1)
-
-
-data = {}
-
-
-def get_embeddings():
-    imagePaths = list(paths.list_images(image_dir_basepath))
-    print('paths', imagePaths)
-    for name in names:
-        image_dirpath = image_dir_basepath + name
-        image_filepaths = [os.path.join(image_dirpath, f) for f in os.listdir(image_dirpath)]
-        print('paths2', image_filepaths)
-        embs = calculate_embeddings(image_filepaths)
-        for i in range(len(image_filepaths)):
-            data['{}{}'.format(name, i)] = {'image_filepath': image_filepaths[i],
-                                            'emb': embs[i]}
-
-    calculated_distance = round(calc_dist_plot("NaitCherif1", "NaitCherif0"), 1)
-    print(calculated_distance, 'Same' if calculated_distance <= 0.55 else 'Different', 'person')
-
-    return data

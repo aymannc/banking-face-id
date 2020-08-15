@@ -20,6 +20,7 @@ def extract_face(filename, required_size=(160, 160)):
     # detect faces in the image
     print('[INFO] detecting faces')
     results = detector.detect_faces(pixels)
+
     faces_array = []
     # extract the bounding box from the first face
     for result in results:
@@ -35,4 +36,5 @@ def extract_face(filename, required_size=(160, 160)):
         faces_array.append(image)
         plt.imshow(image)
         plt.show()
+    print(F'found {len(faces_array)} face(s) in ', filename)
     return faces_array
