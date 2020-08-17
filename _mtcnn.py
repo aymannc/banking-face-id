@@ -36,5 +36,7 @@ def extract_face(filename, required_size=(160, 160)):
         faces_array.append(image)
         plt.imshow(image)
         plt.show()
+    if len(faces_array) == 0:
+        raise Exception(F'found 0 faces in ', filename)
     print(F'found {len(faces_array)} face(s) in ', filename)
     return faces_array

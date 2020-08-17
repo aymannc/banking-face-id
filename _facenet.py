@@ -36,6 +36,7 @@ def load_and_align_images(filepaths):
 
 def calculate_embeddings(file_paths, model, sess, graph):
     aligned_images = prewhiten(load_and_align_images(file_paths))
+    print('')
     print('[INFO] Done aligning images')
     pd = []
     for aligned_image in aligned_images:
