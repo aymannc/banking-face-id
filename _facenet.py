@@ -34,15 +34,14 @@ def load_and_align_images(filepaths):
     return np.array(aligned_images)
 
 
-def calculate_embeddings(filepaths, model, sess, graph, batch_size=1):
-    aligned_images = prewhiten(load_and_align_images(filepaths))
+def calculate_embeddings(file_paths, model, sess, graph):
+    aligned_images = prewhiten(load_and_align_images(file_paths))
     print('[INFO] Done aligning images')
     pd = []
-    for i in range(len(aligned_images)):
+    for aligned_image in aligned_images:
         print('[INFO] Calculating encodings')
         with graph.as_default():
             set_session(sess)
-            embedding = model.predict_on_batch(aligned_images[i:i + batch_size])
+            embedding = model.predict(np.expand_dims(aligned_image, axis=0))
         pd.append(embedding)
-    embs = l2_normalize(np.concatenate(pd))
-    return embs
+    return l2_normalize(np.concatenate(pd))

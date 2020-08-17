@@ -59,7 +59,7 @@ def get_user_encoding(mysql, username=None, user_id=None):
     raise Exception("didn't found this user")
 
 
-def calculate_distance_mysql(encodings, mysql, distance=0.55):
+def calculate_distance_from_mysql(encodings, mysql, distance=0.55):
     try:
         print(F'[INFO] calculating distance in mysql')
         encodings_string = " sqrt("
@@ -69,12 +69,10 @@ def calculate_distance_mysql(encodings, mysql, distance=0.55):
 
         query = F"select r.userID, r.distance from ( SELECT userID,{encodings_string} as distance from encodings )" \
                 F" as r where r.distance < {distance} order by r.distance asc;"
-        print(query)
         cursor = mysql.connection.cursor()
         cursor.execute(query)
         data = cursor.fetchall()
-        print(data)
-        return data
+        return data if len(data) else None
     except Exception as e:
         print(e)
         return e
