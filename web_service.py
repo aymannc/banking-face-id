@@ -13,7 +13,7 @@ from tensorflow.python.keras.models import load_model
 
 from _facenet import calculate_embeddings
 from mysql_queries import insert_encodings, create_encodings_table, get_user_id, calculate_distance_from_mysql, \
-    get_user_encoding, check_user_by_id, encodings_exits
+    get_user_encoding, check_user_by_id, encodings_exits, get_username_by_id
 
 MAX_DISTANCE = 0.6
 
@@ -80,9 +80,7 @@ def upload_images():
                         local_paths.append(full_path)
                         public_paths.append(f"{public_url}uploads/{username}/{file_name}")
                 print('[INFO] Pictures saved !', local_paths)
-                error_message = encode_images(username, user_id=user_id)
-                if error_message:
-                    raise Exception(error_message)
+                encode_images(username, user_id=user_id)
             except Exception as e:
                 print(e)
                 return {"error": str(e)}, 500
@@ -105,16 +103,23 @@ def upload_images():
 def encode_user_images(username=None):
     start_time = time.time()
     status_code = 201
-
-    request_data = request.get_json()
-    username = username or request_data.get('username')
-    if username:
-        # TODO : add check for 0 faces
-        error_message = encode_images(username)
-        status_code = 500 if error_message else status_code
-    else:
-        error_message = "Username not provided/found"
+    error_message = None
+    try:
+        username = username or get_username_by_id(request.form['user_id'], mysql)
+        if username:
+            try:
+                # TODO : add check for 0 faces
+                encode_images(username)
+            except Exception as e:
+                error_message = e
+                status_code = 500
+        else:
+            error_message = "Username not found"
+            status_code = 404
+    except Exception as _:
+        error_message = "You didn't provide a user id"
         status_code = 404
+
     successful = not error_message
     response = {
         "successful": successful,
@@ -138,11 +143,13 @@ def encode_all_images():
         for username, user_id in users_ids:
             # TODO : add check for 0 faces
             error_message = encode_images(username)
-            if error_message:
-                raise Exception(error_message)
     except Exception as e:
+        try:
+            url = public_url + str(e.args[1]).split('/', 1)[1].replace('\\', '/')
+            error_message = F"{e.args[0]} {url}"
+        except Exception as _:
+            error_message = str(e)
         successful = False
-        error_message = e
         print(e)
     finally:
         response = {
@@ -264,19 +271,14 @@ def calculate_distance_from_user_encoding(encodings, user_id):
 
 
 def encode_images(username, user_id=None):
-    try:
-        path = os.path.join(dataset_path, username)
-        images = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
-        encodings = calculate_embeddings(images, model, sess, graph)
-        print('[INFO] Calculating the mean')
-        mean = np.mean(encodings, axis=0)
-        error = insert_encodings(mean, username, mysql, user_id)
-        if error:
-            return error
-        return None
-    except Exception as e:
-        print(e)
-        return e
+    path = os.path.join(dataset_path, username)
+    images = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    encodings = calculate_embeddings(images, model, sess, graph)
+    print('[INFO] Calculating the mean')
+    mean = np.mean(encodings, axis=0)
+    error = insert_encodings(mean, username, mysql, user_id)
+    if error:
+        raise Exception(error)
 
 
 if __name__ == "__main__":

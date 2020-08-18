@@ -11,6 +11,18 @@ def create_encodings_table(mysql):
     return query
 
 
+def get_username_by_id(id, mysql):
+    print(f'[INFO] get_username_by_id with {id}')
+    if id:
+        cursor = mysql.connection.cursor()
+        query = F"SELECT username from abonne where id='{id}'"
+        cursor.execute(query)
+        data = cursor.fetchone()
+        return data[0] if data else None
+    else:
+        return None
+
+
 def get_user_id(username, mysql):
     print(f'[INFO] get_user_id with {username}')
     if username:
