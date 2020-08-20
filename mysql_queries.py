@@ -61,22 +61,18 @@ def encodings_exits(user_id, mysql):
 
 def insert_encodings(encoding, username, mysql, user_id=None):
     print(f'[INFO] insert_encodings with {username} or {user_id}')
-    try:
-        user_id = user_id or get_user_id(username, mysql)
-        if user_id:
-            print(F'[INFO] inserting encoding for {username} with id: {user_id}')
-            query = F"REPLACE INTO encodings values(null,{user_id}"
-            for value in encoding:
-                query += F',{value}'
-            query += ')'
-            connection = mysql.connection
-            cursor = connection.cursor()
-            cursor.execute(query)
-            connection.commit()
-            return None
-    except Exception as e:
-        print(e)
-        return e
+    user_id = user_id or get_user_id(username, mysql)
+    if user_id:
+        print(F'[INFO] inserting encoding for {username} with id: {user_id}')
+        query = F"REPLACE INTO encodings values(null,{user_id}"
+        for value in encoding:
+            query += F',{value}'
+        query += ')'
+        connection = mysql.connection
+        cursor = connection.cursor()
+        cursor.execute(query)
+        connection.commit()
+        return None
 
 
 def get_user_encoding(mysql, username=None, user_id=None):
@@ -85,32 +81,29 @@ def get_user_encoding(mysql, username=None, user_id=None):
         raise Exception("You must specify either username or user_id")
     user_id = user_id or get_user_id(username, mysql)
     if user_id:
-        query = F"select * from encodings where userID = {user_id}"
+        query = F"select a.username, e.* from encodings e, abonne a where userID ={user_id} and a.id = e.userID"
         cursor = mysql.connection.cursor()
         cursor.execute(query)
         data = cursor.fetchone()
         encodings = []
-        for e in data[2:]:
+        for e in data[3:]:
             encodings.append(float(e))
-        return encodings
+        return encodings, data[0]
     raise Exception("didn't found this user")
 
 
 def calculate_distance_from_mysql(encodings, mysql, distance=0.55):
-    try:
-        print(F'[INFO] calculating distance in mysql')
-        encodings_string = " sqrt("
-        for i, encoding in enumerate(encodings):
-            encodings_string += F"power({encoding} - encoding{i}, 2)+"
-        encodings_string += "0)"
+    print(F'[INFO] calculating distance in mysql')
+    encodings_string = " sqrt("
+    for i, encoding in enumerate(encodings):
+        encodings_string += F"power({encoding} - encoding{i}, 2)+"
+    encodings_string += "0)"
 
-        query = F"select r.userID, r.distance from ( SELECT userID,{encodings_string} as distance from encodings )" \
-                F" as r where r.distance < {distance} order by r.distance asc;"
-        cursor = mysql.connection.cursor()
-        cursor.execute(query)
-        data = cursor.fetchall()
-        print(query)
-        return data if len(data) else None
-    except Exception as e:
-        print(e)
-        return e
+    query = F"select r.userID, r.distance , r.username from ( SELECT userID,a.username,{encodings_string} " \
+            F"as distance from encodings left join abonne a on a.id = encodings.userID )" \
+            F" as r where r.distance < {distance} order by r.distance asc;"
+    cursor = mysql.connection.cursor()
+    cursor.execute(query)
+    data = cursor.fetchall()
+    print(query)
+    return data if len(data) else None

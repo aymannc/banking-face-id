@@ -4,8 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
-from flask import Flask
-from flask import request, send_from_directory
+from flask import Flask, request, send_from_directory
 from flask_cors import CORS
 from flask_mysqldb import MySQL
 from tensorflow.python.keras.backend import set_session
@@ -15,16 +14,17 @@ from _facenet import calculate_embeddings
 from mysql_queries import insert_encodings, create_encodings_table, get_user_id, calculate_distance_from_mysql, \
     get_user_encoding, check_user_by_id, encodings_exits, get_username_by_id
 
+# Constants
 MAX_DISTANCE = 0.6
-
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 images_path = 'data/'
 dataset_path = os.path.join(images_path, "uploads/")
 requests_path = os.path.join(images_path, "requests/")
 public_url = 'http://127.0.0.1:5000/'
+
+# App creation
 app = Flask(__name__)
 CORS(app)
-
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = ''
@@ -32,8 +32,7 @@ app.config['MYSQL_DB'] = 'adria'
 mysql = MySQL(app)
 
 print('[INFO] loading model')
-tf_config = None
-sess = tf.Session(config=tf_config)
+sess = tf.Session()
 graph = tf.get_default_graph()
 set_session(sess)
 model = load_model('facenet_keras.h5')
@@ -60,9 +59,9 @@ def creating_encodings_table():
     return create_encodings_table(mysql)
 
 
-@app.route('/upload_images', methods=['GET', 'POST'])
+@app.route('/upload_images', methods=['POST'])
 def upload_images():
-    if request.method == 'POST' and 'files' in request.files:
+    if 'files' in request.files and request.form.get('username'):
         username = request.form.get('username') or None
         print('[INFO] username !', username)
         user_id = get_user_id(username, mysql)
@@ -82,21 +81,16 @@ def upload_images():
                 print('[INFO] Pictures saved !', local_paths)
                 encode_images(username, user_id=user_id)
             except Exception as e:
-                print(e)
-                return {"error": str(e)}, 500
+                try:
+                    url = public_url + str(e.args[1]).split('/', 1)[1].replace('\\', '/')
+                    error_message = F"{e.args[0]}: {url}"
+                except Exception as _:
+                    error_message = str(e)
+                print(error_message)
+                return {"error": error_message}, 400
             return {"uploaded_images": public_paths}, 201
         else:
             return {"error": "Didn't found the user "}, 404
-    return '''
-    <!doctype html>
-    <title>Upload</title>
-    <h1>Upload a picture !</h1>
-    <form method="POST" enctype="multipart/form-data">
-      <input type="text" id="username" name="username"><br>
-      <input type="file" id="files" name="files" multiple>
-      <input type="submit" value="Upload">
-    </form>
-    '''
 
 
 @app.route('/encode_user_images', methods=['POST'])
@@ -111,8 +105,12 @@ def encode_user_images(username=None):
                 # TODO : add check for 0 faces
                 encode_images(username)
             except Exception as e:
-                error_message = e
-                status_code = 500
+                status_code = 400
+                try:
+                    url = public_url + str(e.args[1]).split('/', 1)[1].replace('\\', '/')
+                    error_message = F"{e.args[0]}: {url}"
+                except Exception as _:
+                    error_message = e
         else:
             error_message = "Username not found"
             status_code = 404
@@ -158,127 +156,111 @@ def encode_all_images():
             "time_to_complete": time.time() - start_time
         }
 
-        return response, 500 if error_message else 201
+        return response, 400 if error_message else 201
 
 
-# @app.route('/compare_users_encodings', methods=['GET'])
-# def compare_users_encodings():
-#     encodings = get_user_encoding(mysql, 'ouftou')
-#     results = calculate_distance_mysql(encodings, mysql, distance=0.55)
-#     return str(results)
-
-
-@app.route('/facial_recognition', methods=['GET', 'POST'])
+@app.route('/facial_recognition', methods=['POST'])
 def upload_image():
     start_time = time.time()
-    if request.method == 'POST':
-        error = None
-        response = None
-        image_requested_link = None
-        if 'file' not in request.files:
-            return {"error": "No image uploaded!"}, 404
+    error = None
+    response = None
+    image_requested_link = None
+    
+    if 'file' not in request.files:
+        return {"error": "No image uploaded!"}, 404
 
-        file = request.files['file']
+    file = request.files['file']
 
-        if file.filename == '':
-            return {"error": "Image error!"}, 415
+    if file.filename == '':
+        return {"error": "Image error!"}, 415
 
-        # The image file seems valid! Detect faces and return the result.
-        if file and allowed_file(file.filename):
-            # Check for user
+    # The image file seems valid! Detect faces and return the result.
+    if file and allowed_file(file.filename):
+        # Check for user
+        user_id = None
+        try:
+            form_user_id = request.form['user_id']
+            if form_user_id:
+                # Check the database
+                user_id = check_user_by_id(form_user_id, mysql)
+                if user_id is None:
+                    error = f"Didn't found a user with the id {form_user_id}"
+                    user_id = -1
+                else:
+                    user_id = user_id if encodings_exits(user_id, mysql) else -1
+                    error = None if user_id != -1 else f"Didn't found embeddings for a user with the " \
+                                                       f"id {form_user_id} "
+        except Exception as e:
+            print(e)
             user_id = None
+        # If the id is None or valid( not equal to -1 )
+        if user_id != -1:
+            # Saving the file for traceability
+            file_name = f"{time.time()}_{file.filename}"
+            # Check if folder exists
+            Path(requests_path).mkdir(parents=True, exist_ok=True)
+            full_path = os.path.join(requests_path, file_name)
+            file.save(full_path)
+            image_requested_link = f"{public_url}requests/{file_name}"
+            encodings = None
             try:
-                form_user_id = request.form['user_id']
-                if form_user_id:
-                    # Check the database
-                    user_id = check_user_by_id(form_user_id, mysql)
-                    if user_id is None:
-                        error = f"Didn't found a user with the id {form_user_id}"
-                        user_id = -1
-                    else:
-                        user_id = user_id if encodings_exits(user_id, mysql) else -1
-                        error = None if user_id != -1 else f"Didn't found embeddings for a user with the " \
-                                                           f"id {form_user_id} "
+                encodings = calculate_embeddings([full_path], model, sess, graph)[0]
             except Exception as e:
-                print(e)
-                user_id = None
-            # If the id is None or valid( not equal to -1 )
-            if user_id != -1:
-                # Saving the file for traceability
-                file_name = f"{time.time()}_{file.filename}"
-                # Check if folder exists
-                Path(requests_path).mkdir(parents=True, exist_ok=True)
-                full_path = os.path.join(requests_path, file_name)
-                file.save(full_path)
-                image_requested_link = f"{public_url}requests/{file_name}"
-                encodings = None
                 try:
-                    encodings = calculate_embeddings([full_path], model, sess, graph)[0]
+                    error = F"{e.args[0]} {public_url + str(e.args[1]).split('/', 1)[1]}"
+                except Exception as _:
+                    error = str(e)
+            # Comparing generated encoding with saved ones
+            if encodings is not None:
+                try:
+                    if user_id:
+                        distance, username = calculate_distance_from_user_encoding(encodings, user_id)
+                        print('Distance ', distance)
+                        if distance < MAX_DISTANCE:
+                            response = {
+                                "id": int(user_id),
+                                "distance": distance,
+                                "username": username
+                            }
+                    else:
+                        data = calculate_distance_from_mysql(encodings, mysql, distance=MAX_DISTANCE)
+                        if data is not None:
+                            response = []
+                            for e in data:
+                                response.append({
+                                    "id": int(e[0]),
+                                    "distance": float(e[1]),
+                                    "username": e[2],
+                                })
                 except Exception as e:
-                    try:
-                        error = F"{e.args[0]} {public_url + str(e.args[1]).split('/', 1)[1]}"
-                    except Exception as _:
-                        error = str(e)
-                # Comparing generated encoding with saved ones
-                if encodings is not None:
-                    try:
-                        if user_id:
-                            distance = calculate_distance_from_user_encoding(encodings, user_id)
-                            print('Distance ', distance)
-                            if distance < MAX_DISTANCE:
-                                response = {
-                                    "id": int(user_id),
-                                    "distance": distance,
-                                }
-                        else:
-                            data = calculate_distance_from_mysql(encodings, mysql, distance=MAX_DISTANCE)
-                            if data is not None:
-                                response = []
-                                for e in data:
-                                    response.append({
-                                        "id": int(e[0]),
-                                        "distance": float(e[1]),
-                                    })
-                    except Exception as e:
-                        print(e)
-                        error = str(e)
-            result = {
-                "distance_used": MAX_DISTANCE,
-                "image_requested_link": image_requested_link,
-                "operation_time": time.time() - start_time,
-                "error": error,
-                "response": response,
-            }
-            return result, 200 if not error else 500
-
-    return '''
-    <!doctype html>
-    <title>Is this a picture of X?</title>
-    <h1>Upload a picture !</h1>
-    <form method="POST" enctype="multipart/form-data">
-      <input type="file" name="file" required>
-      <input type="text" name="user_id"  required>
-      <input type="submit" value="Upload">
-    </form>
-    '''
+                    print(e)
+                    error = str(e)
+        result = {
+            "distance_used": MAX_DISTANCE,
+            "image_requested_link": image_requested_link,
+            "operation_time": time.time() - start_time,
+            "error": error,
+            "response": response,
+        }
+        return result, 200 if not error else 400
 
 
 def calculate_distance_from_user_encoding(encodings, user_id):
-    db_encodings = get_user_encoding(mysql, user_id=user_id)
+    db_encodings, username = get_user_encoding(mysql, user_id=user_id)
     if db_encodings:
-        return np.linalg.norm(encodings - db_encodings)
+        return np.linalg.norm(encodings - db_encodings), username
     return None
 
 
 def encode_images(username, user_id=None):
     path = os.path.join(dataset_path, username)
     images = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    if len(images) == 0:
+        raise Exception('No images found for this user: ' + username)
     encodings = calculate_embeddings(images, model, sess, graph)
     print('[INFO] Calculating the mean')
     mean = np.mean(encodings, axis=0)
-    error = insert_encodings(mean, username, mysql, user_id)
-    if error:
-        raise Exception(error)
+    insert_encodings(mean, username, mysql, user_id)
 
 
 if __name__ == "__main__":

@@ -21,9 +21,12 @@ def extract_face(filename, required_size=(160, 160)):
     print('[INFO] detecting faces')
     results = detector.detect_faces(pixels)
 
-    faces_array = []
     # extract the bounding box from the first face
-    for result in results:
+    print(results)
+    if len(results):
+        result = max(results, key=lambda r: r['confidence'])
+        print(result)
+        # for result in results:
         x1, y1, width, height = result['box']
         x1, y1 = abs(x1), abs(y1)
         x2, y2 = x1 + width, y1 + height
@@ -33,10 +36,9 @@ def extract_face(filename, required_size=(160, 160)):
         image = Image.fromarray(face)
         image = image.resize(required_size)
         image = asarray(image)
-        faces_array.append(image)
         plt.imshow(image)
         plt.show()
-    if len(faces_array) == 0:
+    else:
         raise Exception(F'found 0 faces in ', filename)
-    print(F'found {len(faces_array)} face(s) in ', filename)
-    return faces_array
+    print(F'found {len(results)} face(s) in ', filename)
+    return image

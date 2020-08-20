@@ -30,7 +30,7 @@ def load_and_align_images(filepaths):
     aligned_images = []
     for filepath in filepaths:
         print('[INFO] Aligning image :', filepath)
-        aligned_images.append(extract_face(filepath)[0])
+        aligned_images.append(extract_face(filepath))
     return np.array(aligned_images)
 
 
