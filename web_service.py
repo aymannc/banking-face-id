@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from pathlib import Path
 
@@ -73,6 +74,9 @@ def upload_images():
                     if file and allowed_file(file.filename):
                         base_path = os.path.join(dataset_path, username)
                         file_name = f"{username}_{time.time()}{file.filename}"
+                        count = file_name.count(".") - 1
+                        file_name = file_name.replace('.', '_', count)
+                        file_name = re.sub('[^0-9a-zA-Z]+', '_', file_name)
                         Path(base_path).mkdir(parents=True, exist_ok=True)
                         full_path = os.path.join(base_path, file_name)
                         file.save(full_path)
@@ -161,11 +165,12 @@ def encode_all_images():
 
 @app.route('/facial_recognition', methods=['POST'])
 def upload_image():
+    print('Authorization', request.headers.get('Authorization'))
     start_time = time.time()
     error = None
     response = None
     image_requested_link = None
-    
+
     if 'file' not in request.files:
         return {"error": "No image uploaded!"}, 404
 
