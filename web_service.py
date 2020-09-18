@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import regex as regex
 import tensorflow as tf
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
@@ -73,10 +74,7 @@ def upload_images():
                 for file in request.files.getlist('files'):
                     if file and allowed_file(file.filename):
                         base_path = os.path.join(dataset_path, username)
-                        file_name = f"{username}_{time.time()}{file.filename}"
-                        count = file_name.count(".") - 1
-                        file_name = file_name.replace('.', '_', count)
-                        file_name = re.sub('[^0-9a-zA-Z]+', '_', file_name)
+                        file_name = f"{username}-{time.time()}.{file.filename.split('.')[-1]}"
                         Path(base_path).mkdir(parents=True, exist_ok=True)
                         full_path = os.path.join(base_path, file_name)
                         file.save(full_path)
@@ -269,4 +267,4 @@ def encode_images(username, user_id=None):
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
