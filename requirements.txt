@@ -1,0 +1,7 @@
+pillow~=7.2.0
+mtcnn~=0.1.0
+numpy~=1.19.1
+tensorflow==1.14.0
+flask~=1.1.2
+flask-mysqldb
+flask-cors

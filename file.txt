@@ -1,0 +1,3 @@
+virtualenv .venv
+source .venv/bin/activate
+gdown https://drive.google.com/uc?id=1PZ_6Zsy1Vb0s0JmjEmVd8FS99zoMCiN1

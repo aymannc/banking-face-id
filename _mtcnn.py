@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 from PIL import Image
 from mtcnn.mtcnn import MTCNN
 from numpy import asarray
@@ -12,9 +11,6 @@ def extract_face(filename, required_size=(160, 160)):
     image = image.convert('RGB')
     # convert to array
     pixels = asarray(image)
-    # displaying the image
-    plt.imshow(image)
-    plt.show()
     # create the detector, using default weights
     detector = MTCNN()
     # detect faces in the image
@@ -36,8 +32,6 @@ def extract_face(filename, required_size=(160, 160)):
         image = Image.fromarray(face)
         image = image.resize(required_size)
         image = asarray(image)
-        plt.imshow(image)
-        plt.show()
     else:
         raise Exception(F'found 0 faces in ', filename)
     print(F'found {len(results)} face(s) in ', filename)

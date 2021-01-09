@@ -4,7 +4,10 @@ import time
 from pathlib import Path
 
 import numpy as np
+<<<<<<< HEAD
 import regex as regex
+=======
+>>>>>>> adding Dockerfile
 import tensorflow as tf
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
