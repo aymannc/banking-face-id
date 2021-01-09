@@ -1,13 +1,8 @@
 import os
-import re
 import time
 from pathlib import Path
 
 import numpy as np
-<<<<<<< HEAD
-import regex as regex
-=======
->>>>>>> adding Dockerfile
 import tensorflow as tf
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
@@ -30,9 +25,10 @@ public_url = 'http://127.0.0.1:5000/'
 # App creation
 app = Flask(__name__)
 CORS(app)
-app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_HOST'] = 'db'
+app.config['MYSQL_PORT'] = '3306'
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
+app.config['MYSQL_PASSWORD'] = 'root'
 app.config['MYSQL_DB'] = 'adria'
 mysql = MySQL(app)
 
@@ -270,4 +266,4 @@ def encode_images(username, user_id=None):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(port=5000, host='0.0.0.0')
