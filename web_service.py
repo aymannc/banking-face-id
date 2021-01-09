@@ -3,6 +3,10 @@ import time
 from pathlib import Path
 
 import numpy as np
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 import tensorflow as tf
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
@@ -26,7 +30,6 @@ public_url = 'http://127.0.0.1:5000/'
 app = Flask(__name__)
 CORS(app)
 app.config['MYSQL_HOST'] = 'db'
-app.config['MYSQL_PORT'] = '3306'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'root'
 app.config['MYSQL_DB'] = 'adria'
