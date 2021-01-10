@@ -3,10 +3,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
 import tensorflow as tf
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
@@ -269,4 +265,4 @@ def encode_images(username, user_id=None):
 
 
 if __name__ == "__main__":
-    app.run(port=5000, host='0.0.0.0')
+    app.run(debug=True, port=5000, host='0.0.0.0')

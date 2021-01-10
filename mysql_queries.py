@@ -1,7 +1,7 @@
 def create_encodings_table(mysql):
-    query = 'DROP Table IF EXISTS encodings ;' \
-            'CREATE TABLE encodings(id bigint(20) NOT NULL AUTO_INCREMENT,' \
-            'userID bigint(20) NOT NULL UNIQUE,'
+    query = "DROP Table IF EXISTS encodings ;" \
+            "CREATE TABLE encodings(id bigint(20) NOT NULL AUTO_INCREMENT," \
+            "userID bigint(20) NOT NULL UNIQUE,"
     for i in range(128):
         query += F'encoding{i} decimal(20,19) NOT NULL,'
     query += 'PRIMARY KEY (id), FOREIGN KEY (userID) REFERENCES abonne(id))'

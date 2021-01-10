@@ -1,11 +1,7 @@
 version: "2"
 services:
   app:
-<<<<<<< HEAD
     image: "faceidapi"
-=======
-    image: "aymannc/faceid"
->>>>>>> 6649f5593d2f45fac273e7dda0acc03d50afa167
     links:
       - db
     ports:
@@ -15,6 +11,6 @@ services:
     ports:
       - "32000:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
+        MYSQL_ROOT_PASSWORD: root
     volumes:
       - ./db:/docker-entrypoint-initdb.d/:ro
