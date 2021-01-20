@@ -1,7 +1,8 @@
+import matplotlib.pyplot as plt
 from PIL import Image
 from mtcnn.mtcnn import MTCNN
 from numpy import asarray
-
+from keras import backend as K
 
 # extract a single face from a given photograph
 def extract_face(filename, required_size=(160, 160)):
@@ -11,10 +12,11 @@ def extract_face(filename, required_size=(160, 160)):
     image = image.convert('RGB')
     # convert to array
     pixels = asarray(image)
-    # # displaying the image
-    # plt.imshow(image)
-    # plt.show()
+    # displaying the image
+    plt.imshow(image)
+    plt.show()
     # create the detector, using default weights
+    K.clear_session()
     detector = MTCNN()
     # detect faces in the image
     print('[INFO] detecting faces')
